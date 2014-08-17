@@ -1,20 +1,173 @@
 # Reproducible Research: Peer Assessment 1
+---
+author: "Perumal Kumar"  
+date: "Sunday, August 17, 2014"  
+output: html_document  
+---
 
+
+This is a document describing the activities required for Peer Assessment 1 part of Reproducible Research Course. 
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 ## Loading and preprocessing the data
+```{r}
+# Read the data from file 
+activity <- read.csv("./activity.csv")
 
-
+#convert the date field to date format
+activity$date <-as.Date(activity$date)
+```
 
 ## What is mean total number of steps taken per day?
+
+Let us draw a histogram that shows the number of steps taken in a day
+```{r,warning=FALSE}
+library(ggplot2)
+q1<- qplot(date,data=activity, xlab="DATE",ylab="Number of Steps") 
+q1<- q1 + geom_histogram(aes(weight=activity$steps),binwidth=.5) 
+q1<- q1 + scale_x_date()
+q1
+```
+
+
+Let us look at the Mean and Median for the data. If we analyze the data we can look at mean in two ways.     
+
+* consider also when steps is 0 in calculation and ignore NA steps   
+* ignore all rows where steps is 0 and NA steps
+
+
+Let us first analyze when we include rows steps is zero to find mean and median
+```{r}
+library(plyr)
+summ_activity = ddply(activity,.(date),summarize, mean=mean(steps,na.rm=TRUE),median = median(steps,na.rm=TRUE),sum = sum(steps,na.rm=TRUE))
+head(summ_activity,n=20)
+```
+
+
+
+Let us now analyze when we exclude rows with steps as zero to find mean and median
+```{r}
+library(plyr)
+summ_activity1 = ddply(activity,.(date),summarize,mean=mean(steps[steps!=0],na.rm=TRUE),median = median(steps[steps!=0],na.rm=TRUE),sum = sum(steps,na.rm=TRUE))
+head(summ_activity1,n=20)
+```
+
+We notice that Mean and Median changes with the assumption taken. 
 
 
 
 ## What is the average daily activity pattern?
 
+Let us now look at the plot of average daily activity pattern from original data
 
+let us first sumarize the average daily data and then plot it(ignoring steps as NA or 0)
+
+```{r}
+avg_activity = ddply(activity,.(interval),summarize,steps=round(mean(steps[steps!=0],na.rm=TRUE)),0)
+                       
+qplot(interval,steps, data=avg_activity,xlab="Intervals",ylab="Average Steps") + geom_line(breaks=avg_activity$intervals) + scale_y_continuous( limits = c(0,350), expand = c(0,0) )
+
+```
+
+We notice that the average peaks up between interval 750 and 1000 let us narrow the plot
+
+```{r}
+
+qplot(interval,steps, data=avg_activity,xlab="Intervals",ylab="Average Steps") + geom_line(breaks=avg_activity$intervals) + scale_y_continuous( limits = c(0,350), expand = c(0,0) ) + scale_x_continuous(limits = c(750,1000))
+
+
+```
+
+We observe the maximum happens on interval 850 interval and the value is 352 from the table below
+
+```{r}
+summary(avg_activity)
+```
 
 ## Imputing missing values
 
+Let us look at the data from the original data to find the number of NA
 
+```{r}
+summary(activity)
+```
+
+The data clearly shows a large number of NAs in total 2304 rows with NA values.
+
+Let us now force the NA to have some values. 
+
+When we look at the data it seems that there are certain days when there is no data captured. Let us therefore replace NA with the average of the steps for the interval across the data.
+
+
+```{r}
+activity_nona<-ddply(activity,.(interval),transform,steps=ifelse(is.na(steps),mean(steps,na.rm=TRUE),steps))
+```
+
+
+Let us now plot histogram of number of steps taken each day
+
+```{r}
+library(ggplot2)
+q1<- qplot(date,data=activity_nona, xlab="DATE",ylab="Number of Steps") 
+q1<- q1 + geom_histogram(aes(weight=activity$steps),binwidth=.5) 
+q1<- q1 + scale_x_date()
+suppressWarnings(print(q1))
+```
+
+
+The imputing of data has made the histogram smoother..
+
+Let us also look at the summary information of data 
+
+```{r}
+summary(activity_nona)
+```
+
+We notice the Mean and Median do not change
+
+Let us find Mean and Median for each day[exclude steps with 0]
+
+```{r}
+summ_activity2 = ddply(activity_nona,.(date),summarize,mean=mean(steps[steps!=0],na.rm=TRUE),median = median(steps[steps!=0],na.rm=TRUE),sum = sum(steps,na.rm=TRUE))
+summary(summ_activity2)
+```
+
+
+Let us see if the orginal summary and imputed data summary look the same for 20 rows
+
+
+Oringal Summary of Mean and Median
+```{r}
+head(summ_activity1,n=20)
+```
+
+
+Imputed data Summary of Mean and Median
+```{r}
+head(summ_activity2,n=20)
+```
+
+
+It is clear that based on the way NA values are replaced with assumption the results can vary.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Let us now convert the data to add weekday to the data frame and plot
+
+```{r}
+activity_nona$weekday<-ifelse(weekdays(activity_nona$date)=="Sunday"|weekdays(activity_nona$date)=="Saturday","weekend","weekday")
+activity_nona$weekday<-factor(activity_nona$weekday)
+```
+
+
+Let us plot it now
+```{r}
+ss<-ggplot(activity_nona,aes(interval,steps))+geom_line()
+ss<- ss + facet_grid(weekday~.)
+ss
+
+
+```
+
+It is clear activities are spread more uniformily during weekdays and during the weenkend it starts later in the day.
